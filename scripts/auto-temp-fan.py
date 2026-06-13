@@ -220,12 +220,19 @@ def require_root_if_writing(dry_run: bool) -> None:
         raise FanctlError("real fan writes require sudo; use --dry-run first")
 
 
+def write_pid_file() -> Path:
+    pid_path = Path(__file__).resolve().parent.parent / "auto-temp-fan.pid"
+    pid_path.write_text(str(os.getpid()))
+    return pid_path
+
 def main() -> int:
     args = build_parser().parse_args()
     fanctl = args.fanctl.resolve()
     if not fanctl.exists():
         raise FanctlError(f"fanctl binary not found: {fanctl}; run swift build first")
     require_root_if_writing(args.dry_run)
+
+    pid_path = write_pid_file()
 
     selected_keys = [item.strip() for item in args.keys.split(",") if item.strip()]
     if not selected_keys and args.profile != "all":
@@ -310,6 +317,7 @@ def main() -> int:
                 break
             time.sleep(args.interval)
     finally:
+        pid_path.unlink(missing_ok=True)
         if args.auto_on_exit and not args.dry_run:
             try:
                 auto_fan(fanctl, args.fan, dry_run=False)
